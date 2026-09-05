@@ -2,6 +2,17 @@ import React, { useState } from 'react';
 import { GitMerge } from 'lucide-react';
 import { useSimulation } from '../context/SimulationContext';
 
+// Distinct per-sensor waveforms: Scenario A = uncorrelated local disturbance,
+// Scenario B = coherent ground movement (same event timing, different magnitude/phase).
+const SCENARIO_A_SN_01 =
+  'M0 30 C16 29, 30 25, 46 28 C54 16, 62 6, 76 12 C88 22, 94 16, 106 22 C118 6, 130 2, 144 12 C158 24, 174 22, 190 27 C216 29, 260 30, 300 31';
+const SCENARIO_A_SN_02 =
+  'M0 32 C36 31, 66 33, 100 30 C136 28, 170 33, 204 30 C238 28, 272 31, 300 32';
+const SCENARIO_B_SN_01 =
+  'M0 33 C22 31, 44 29, 60 16 C72 5, 90 7, 100 19 C112 31, 128 28, 140 13 C152 3, 168 6, 180 21 C192 33, 212 28, 226 14 C238 4, 262 9, 300 19';
+const SCENARIO_B_SN_02 =
+  'M0 34 C26 32, 50 28, 64 13 C80 2, 98 6, 108 18 C120 30, 134 26, 146 10 C158 0, 176 5, 188 20 C200 32, 220 27, 234 11 C248 1, 268 8, 300 20';
+
 export const CorrelationSection: React.FC = () => {
   const { correlationMatrix } = useSimulation();
   const [activeTab, setActiveTab] = useState<'A' | 'B'>('B');
@@ -59,42 +70,79 @@ export const CorrelationSection: React.FC = () => {
 
           {/* Waveform Visualization Box */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            <div className="lg:col-span-7 space-y-4">
-              <div className="p-6 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4 font-mono text-xs">
+            <div className="lg:col-span-7 space-y-4 font-mono text-xs">
+              {/* Sensor 01 Waveform */}
+              <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">SENSOR 01 TELEMETRY WAVEFORM</span>
                   <span className={activeTab === 'B' ? 'text-cyan-400 font-bold' : 'text-slate-500'}>SN-01</span>
                 </div>
-                {/* SVG Simulated Waveform */}
-                <svg className="w-full h-12 stroke-current overflow-visible" viewBox="0 0 300 40">
+                <svg className="w-full h-16 stroke-current overflow-visible" viewBox="0 0 300 40">
+                  <defs>
+                    <pattern id="waveGrid1" width="25" height="8" patternUnits="userSpaceOnUse">
+                      <path d="M 25 0 L 0 0 0 8" fill="none" stroke="#1e293b" strokeWidth="0.4" />
+                    </pattern>
+                  </defs>
+                  <rect width="300" height="40" fill="url(#waveGrid1)" />
+                  <line x1="0" y1="29" x2="300" y2="29" stroke="#334155" strokeWidth="0.6" strokeDasharray="3 3" />
                   <path
-                    d={
-                      activeTab === 'A'
-                        ? 'M 0 20 Q 25 5 50 35 T 100 15 T 150 28 T 200 8 T 250 32 T 300 20'
-                        : 'M 0 20 Q 30 10 60 30 T 120 5 T 180 35 T 240 10 T 300 20'
-                    }
+                    d={activeTab === 'A' ? SCENARIO_A_SN_01 : SCENARIO_B_SN_01}
                     fill="none"
                     stroke={activeTab === 'B' ? '#00f2fe' : '#fbbf24'}
                     strokeWidth="2.5"
+                    strokeLinecap="round"
                   />
+                  {activeTab === 'B' && (
+                    <>
+                      <circle cx="78" cy="4" r="2.5" fill="#00f2fe" stroke="#0d1522" strokeWidth="1" />
+                      <circle cx="157" cy="3" r="2.5" fill="#00f2fe" stroke="#0d1522" strokeWidth="1" />
+                      <circle cx="245" cy="4" r="2.5" fill="#00f2fe" stroke="#0d1522" strokeWidth="1" />
+                    </>
+                  )}
                 </svg>
+                <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-900">
+                  <span className="text-slate-500">
+                    {activeTab === 'B' ? 'PEAK: 1.62g (UPPER-SLOPE INITIATION)' : 'PEAK: 1.20g (ISOLATED BURST)'}
+                  </span>
+                  <span className="text-cyan-400 font-bold">{activeTab === 'B' ? 'RMS 0.68g' : 'RMS 0.09g'}</span>
+                </div>
+              </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-900">
+              {/* Sensor 02 Waveform */}
+              <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
                   <span className="text-slate-400">SENSOR 02 TELEMETRY WAVEFORM</span>
                   <span className={activeTab === 'B' ? 'text-cyan-400 font-bold' : 'text-slate-500'}>SN-02</span>
                 </div>
-                <svg className="w-full h-12 stroke-current overflow-visible" viewBox="0 0 300 40">
+                <svg className="w-full h-16 stroke-current overflow-visible" viewBox="0 0 300 40">
+                  <defs>
+                    <pattern id="waveGrid2" width="25" height="8" patternUnits="userSpaceOnUse">
+                      <path d="M 25 0 L 0 0 0 8" fill="none" stroke="#1e293b" strokeWidth="0.4" />
+                    </pattern>
+                  </defs>
+                  <rect width="300" height="40" fill="url(#waveGrid2)" />
+                  <line x1="0" y1="29" x2="300" y2="29" stroke="#334155" strokeWidth="0.6" strokeDasharray="3 3" />
                   <path
-                    d={
-                      activeTab === 'A'
-                        ? 'M 0 20 Q 25 35 50 8 T 100 32 T 150 12 T 200 28 T 250 15 T 300 20'
-                        : 'M 0 20 Q 30 10 60 30 T 120 5 T 180 35 T 240 10 T 300 20'
-                    }
+                    d={activeTab === 'A' ? SCENARIO_A_SN_02 : SCENARIO_B_SN_02}
                     fill="none"
                     stroke={activeTab === 'B' ? '#00f2fe' : '#f43f5e'}
                     strokeWidth="2.5"
+                    strokeLinecap="round"
                   />
+                  {activeTab === 'B' && (
+                    <>
+                      <circle cx="84" cy="2" r="2.5" fill="#00f2fe" stroke="#0d1522" strokeWidth="1" />
+                      <circle cx="161" cy="1" r="2.5" fill="#00f2fe" stroke="#0d1522" strokeWidth="1" />
+                      <circle cx="240" cy="2" r="2.5" fill="#00f2fe" stroke="#0d1522" strokeWidth="1" />
+                    </>
+                  )}
                 </svg>
+                <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-900">
+                  <span className="text-slate-500">
+                    {activeTab === 'B' ? 'PEAK: 1.85g (DOWNSLOPE AMPLIFICATION)' : 'PEAK: 0.06g (AMBIENT NOISE)'}
+                  </span>
+                  <span className="text-cyan-400 font-bold">{activeTab === 'B' ? 'RMS 0.74g' : 'RMS 0.03g'}</span>
+                </div>
               </div>
             </div>
 
@@ -114,8 +162,8 @@ export const CorrelationSection: React.FC = () => {
 
                 <p className="text-xs text-slate-300 leading-relaxed font-sans">
                   {activeTab === 'B'
-                    ? 'Synchronized phase alignment across multiple sensor nodes confirms localized macro-geological displacement.'
-                    : 'Random phase offset and localized noise decay indicate localized superficial vibration (e.g., machinery or livestock).'}
+                    ? 'Synchronized phase alignment across sensor nodes confirms macro-geological displacement. Each node records the same event onset with node-specific magnitude scaling (upper-slope initiation, downslope amplification).'
+                    : 'Random phase offset and localized noise decay indicate superficial vibration near a single node. Neighboring sensors remain at ambient baseline — no coherent propagation signature.'}
                 </p>
               </div>
             </div>

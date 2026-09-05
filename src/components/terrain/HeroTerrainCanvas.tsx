@@ -7,11 +7,11 @@ import { useSimulation } from '../../context/SimulationContext';
 // Floating dust particle effect
 const DustParticles: React.FC = () => {
   const points = React.useMemo(() => {
-    const p = new Float32Array(300 * 3);
-    for (let i = 0; i < 300; i++) {
-      p[i * 3] = (Math.random() - 0.5) * 30;
-      p[i * 3 + 1] = Math.random() * 8 + 1;
-      p[i * 3 + 2] = (Math.random() - 0.5) * 30;
+    const p = new Float32Array(420 * 3);
+    for (let i = 0; i < 420; i++) {
+      p[i * 3] = (Math.random() - 0.5) * 36;
+      p[i * 3 + 1] = Math.random() * 15 + 1.5;
+      p[i * 3 + 2] = (Math.random() - 0.5) * 36;
     }
     return p;
   }, []);
@@ -25,10 +25,10 @@ const DustParticles: React.FC = () => {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.08}
+        size={0.09}
         color="#00f2fe"
         transparent
-        opacity={0.4}
+        opacity={0.35}
         sizeAttenuation
       />
     </points>
@@ -41,32 +41,33 @@ export const HeroTerrainCanvas: React.FC = () => {
   return (
     <div className="w-full h-full relative overflow-hidden bg-[#05080e]">
       <Canvas shadows gl={{ antialias: true, alpha: true }}>
-        <PerspectiveCamera makeDefault position={[0, 11, 19]} fov={48} />
+        <PerspectiveCamera makeDefault position={[0, 14, 24]} fov={46} />
         <OrbitControls
           enableZoom={false}
           enablePan={false}
           autoRotate
-          autoRotateSpeed={0.6}
-          maxPolarAngle={Math.PI / 2.2}
-          minPolarAngle={Math.PI / 4}
+          autoRotateSpeed={0.5}
+          maxPolarAngle={Math.PI / 2.1}
+          minPolarAngle={Math.PI / 4.4}
         />
 
         {/* Atmospheric Fog */}
-        <fog attach="fog" args={['#05080e', 12, 38]} />
+        <fog attach="fog" args={['#05080e', 20, 54]} />
 
         {/* Ambient & Directional Lighting */}
-        <ambientLight intensity={0.4} />
+        <ambientLight intensity={0.5} />
         <directionalLight
-          position={[12, 18, 10]}
+          position={[12, 22, 12]}
           intensity={1.5}
           color="#00f2fe"
           castShadow
         />
         <directionalLight
-          position={[-12, 10, -10]}
-          intensity={0.8}
+          position={[-12, 14, -10]}
+          intensity={0.7}
           color="#ffb703"
         />
+        <hemisphereLight args={['#003f56', '#0a0f14', 0.4]} />
 
         {/* Ambient Particles */}
         <DustParticles />

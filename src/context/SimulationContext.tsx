@@ -5,30 +5,47 @@ import { INITIAL_SENSORS } from '../data/mockData';
 
 const SimulationContext = createContext<SimulationContextType | undefined>(undefined);
 
-// Baseline initial telemetry points (20 seconds history)
+// ---------- Small numeric & time helpers ----------
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+const num = (v: number, dp = 3) => Number(v.toFixed(dp));
+const rand = (min: number, max: number) => min + Math.random() * (max - min);
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+const formatTime = (now = Date.now()) =>
+  new Date(now).toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
+const formatPacketTime = (now = Date.now()) =>
+  new Date(now).toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }) + '.' + Math.floor(Math.random() * 10);
+
+// Baseline initial telemetry history (~28 s of micro-vibration history)
 const generateInitialTelemetry = (): TelemetryPoint[] => {
   const points: TelemetryPoint[] = [];
   const now = Date.now();
-  for (let i = 19; i >= 0; i--) {
-    const timeStr = new Date(now - i * 1000).toLocaleTimeString('en-US', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+  for (let i = 27; i >= 0; i--) {
+    const s = (28 - i) / 28;
     points.push({
-      time: timeStr,
-      vibration: 0.02 + Math.random() * 0.02,
-      accelX: 0.10 + (Math.random() - 0.5) * 0.02,
-      accelY: 0.15 + (Math.random() - 0.5) * 0.02,
-      accelZ: 0.97 + (Math.random() - 0.5) * 0.02,
-      correlation: 0.18 + Math.random() * 0.08,
+      time: formatTime(now - i * 1000),
+      vibration: num(0.07 + Math.sin(s * Math.PI * 2.2) * 0.03 + Math.random() * 0.03),
+      accelX: num(0.12 + Math.sin(s * 3.1) * 0.007 + (Math.random() - 0.5) * 0.008),
+      accelY: num(0.18 + Math.cos(s * 2.7) * 0.007 + (Math.random() - 0.5) * 0.008),
+      accelZ: num(0.968 + Math.cos(s * 2.2) * 0.005 + (Math.random() - 0.5) * 0.006),
+      correlation: num(0.2 + Math.sin(s * 1.7) * 0.04 + Math.random() * 0.03, 2),
     });
   }
   return points;
 };
 
-// Initial 4x4 Correlation Matrix for STABLE baseline
+// Initial low-correlation baseline
 const INITIAL_CORRELATION_MATRIX = [
   [1.00, 0.21, 0.18, 0.25],
   [0.21, 1.00, 0.19, 0.22],
@@ -36,7 +53,7 @@ const INITIAL_CORRELATION_MATRIX = [
   [0.25, 0.22, 0.15, 1.00],
 ];
 
-// High correlation matrix during landslide event
+// High correlation during a coherent landslide event
 const LANDSLIDE_CORRELATION_MATRIX = [
   [1.00, 0.94, 0.91, 0.88],
   [0.94, 1.00, 0.96, 0.92],
@@ -53,8 +70,8 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'STABLE' | 'WARNING' | 'CRITICAL'>('ALL');
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>(generateInitialTelemetry);
   const [correlationMatrix, setCorrelationMatrix] = useState<number[][]>(INITIAL_CORRELATION_MATRIX);
-  const [overallRiskScore, setOverallRiskScore] = useState<number>(12); // 12% baseline risk
-  const [groundStabilityPercent, setGroundStabilityPercent] = useState<number>(96); // 96% baseline stability
+  const [overallRiskScore, setOverallRiskScore] = useState<number>(12);
+  const [groundStabilityPercent, setGroundStabilityPercent] = useState<number>(96);
   const [lastEventSummary, setLastEventSummary] = useState<LandslideEventSummary | null>(null);
   const [wayanadLayers, setWayanadLayers] = useState<WayanadLayers>({
     sensorNetwork: true,
@@ -64,64 +81,51 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const simTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tickRef = useRef<number>(0);
 
-  // Live telemetry pulse tick (adds realistic micro-variations when running)
+  // Live telemetry pulse tick (realistic idle micro-variations when not simulating)
   useEffect(() => {
     const interval = setInterval(() => {
-      if (isSimulating) return; // Managed by simulation timeline when active
+      if (isSimulating) return; // managed by the simulation timeline when active
+
+      const n = tickRef.current++;
 
       setSensors((prevSensors) =>
-        prevSensors.map((s) => {
-          const deltaVib = (Math.random() - 0.5) * 0.008;
-          const newVib = Math.max(0.01, Math.min(0.08, s.vibration + deltaVib));
-          const timeNow = new Date().toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-          }) + '.' + Math.floor(Math.random() * 10);
-
-          return {
-            ...s,
-            vibration: Number(newVib.toFixed(3)),
-            lastPacketTime: timeNow,
-          };
-        })
+        prevSensors.map((s) => ({
+          ...s,
+          vibration: num(clamp(s.vibration + rand(-0.012, 0.012), 0.02, 0.16)),
+          accelX: num(clamp(s.accelX + rand(-0.006, 0.006), -0.05, 0.35)),
+          accelY: num(clamp(s.accelY + rand(-0.006, 0.006), -0.05, 0.4)),
+          lastPacketTime: formatPacketTime(),
+        }))
       );
 
-      // Append new telemetry point
-      const timeStr = new Date().toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
-
+      const wave = Math.sin(n * 0.6) * 0.02;
       setTelemetryHistory((prev) => [
         ...prev.slice(1),
         {
-          time: timeStr,
-          vibration: Number((0.02 + Math.random() * 0.03).toFixed(3)),
-          accelX: Number((0.11 + (Math.random() - 0.5) * 0.03).toFixed(3)),
-          accelY: Number((0.16 + (Math.random() - 0.5) * 0.03).toFixed(3)),
-          accelZ: Number((0.97 + (Math.random() - 0.5) * 0.03).toFixed(3)),
-          correlation: Number((0.18 + Math.random() * 0.08).toFixed(2)),
+          time: formatTime(),
+          vibration: num(0.075 + wave + Math.random() * 0.03),
+          accelX: num(0.12 + Math.sin(n * 0.5) * 0.008 + (Math.random() - 0.5) * 0.01),
+          accelY: num(0.18 + Math.cos(n * 0.44) * 0.008 + (Math.random() - 0.5) * 0.01),
+          accelZ: num(0.968 + Math.cos(n * 0.38) * 0.005 + (Math.random() - 0.5) * 0.007),
+          correlation: num(0.2 + Math.sin(n * 0.36) * 0.03 + Math.random() * 0.03, 2),
         },
       ]);
-    }, 1500);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [isSimulating]);
 
-  // Landslide event simulation state machine
+  // Landslide event simulation state machine (progressively ramping)
   const triggerSimulation = useCallback(() => {
     if (isSimulating) return;
 
     setIsSimulating(true);
     setSimulationProgress(0);
     setStatus('WARNING');
-    setOverallRiskScore(48);
-    setGroundStabilityPercent(72);
+    setOverallRiskScore(46);
+    setGroundStabilityPercent(74);
 
     let progress = 0;
 
@@ -131,62 +135,66 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       progress += 5;
       setSimulationProgress(progress);
 
-      const timeStr = new Date().toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
+      const timeStr = formatTime();
 
       if (progress <= 30) {
-        // Phase 1: Initial ground shudder / localized vibration
+        // Phase 1: micro-vibration onset on proximal nodes (eased ramp)
+        const t = easeOutCubic(progress / 30);
+        const affected = [1, 2, 3, 7]; // SN-02, SN-03, SN-04, SN-08
+
         setSensors((prev) =>
           prev.map((s, idx) => {
-            const isAffected = [1, 2, 3, 7].includes(idx);
+            const af = affected.includes(idx);
             return {
               ...s,
-              vibration: isAffected ? 0.35 + Math.random() * 0.15 : s.vibration,
-              accelX: isAffected ? 0.32 + Math.random() * 0.1 : s.accelX,
-              accelY: isAffected ? 0.48 + Math.random() * 0.1 : s.accelY,
-              status: isAffected ? 'WARNING' : 'STABLE',
+              vibration: af ? num(0.12 + t * 0.85 + Math.random() * 0.05) : num(clamp(s.vibration, 0.02, 0.16)),
+              accelX: af ? num(0.14 + t * 0.3 + Math.random() * 0.02) : num(s.accelX),
+              accelY: af ? num(0.2 + t * 0.42 + Math.random() * 0.02) : num(s.accelY),
+              accelZ: af ? num(clamp(0.97 - t * 0.2, 0.55, 0.99)) : num(s.accelZ),
+              status: af ? 'WARNING' : 'STABLE',
             };
           })
         );
 
         setCorrelationMatrix([
-          [1.00, 0.52, 0.48, 0.31],
-          [0.52, 1.00, 0.64, 0.45],
-          [0.48, 0.64, 1.00, 0.51],
-          [0.31, 0.45, 0.51, 1.00],
+          [1.0, 0.5, 0.45, 0.3],
+          [0.5, 1.0, 0.62, 0.42],
+          [0.45, 0.62, 1.0, 0.5],
+          [0.3, 0.42, 0.5, 1.0],
         ]);
 
         setTelemetryHistory((prev) => [
           ...prev.slice(1),
           {
             time: timeStr,
-            vibration: Number((0.38 + Math.random() * 0.1).toFixed(3)),
-            accelX: 0.35,
-            accelY: 0.52,
-            accelZ: 0.82,
-            correlation: 0.58,
+            vibration: num(0.15 + t * 0.8 + Math.random() * 0.06),
+            accelX: num(0.2 + t * 0.3),
+            accelY: num(0.28 + t * 0.42),
+            accelZ: num(clamp(0.92 - t * 0.15, 0.65, 0.95)),
+            correlation: num(0.45 + t * 0.25, 2),
           },
         ]);
 
-        setOverallRiskScore(62);
-        setGroundStabilityPercent(58);
+        setOverallRiskScore(Math.round(46 + 22 * t));
+        setGroundStabilityPercent(Math.round(74 - 15 * t));
       } else if (progress <= 70) {
-        // Phase 2: Coherent multi-sensor ground shear (Critical Landslide Event)
+        // Phase 2: coherent multi-sensor shear (critical landslide event)
+        const t = easeOutCubic((progress - 30) / 40);
         setStatus('CRITICAL');
+        const criticalZone = [1, 2, 3, 4, 7, 11]; // SN-02..05, SN-08, SN-12
+
         setSensors((prev) =>
           prev.map((s, idx) => {
-            const isCriticalZone = [1, 2, 3, 4, 7, 8, 11].includes(idx);
+            const critical = criticalZone.includes(idx);
             return {
               ...s,
-              vibration: isCriticalZone ? Number((1.25 + Math.random() * 0.45).toFixed(3)) : Number((0.45 + Math.random() * 0.2).toFixed(3)),
-              accelX: isCriticalZone ? Number((0.78 + Math.random() * 0.25).toFixed(3)) : s.accelX,
-              accelY: isCriticalZone ? Number((0.92 + Math.random() * 0.3).toFixed(3)) : s.accelY,
-              accelZ: isCriticalZone ? Number((0.55 - Math.random() * 0.2).toFixed(3)) : s.accelZ,
-              status: isCriticalZone ? 'CRITICAL' : 'WARNING',
+              vibration: critical
+                ? num(1.1 + t * 0.55 + Math.random() * 0.3)
+                : num(Math.max(s.vibration, 0.45) + Math.random() * 0.15),
+              accelX: critical ? num(0.6 + t * 0.42 + Math.random() * 0.05) : num(s.accelX),
+              accelY: critical ? num(0.72 + t * 0.5 + Math.random() * 0.05) : num(s.accelY),
+              accelZ: critical ? num(clamp(0.62 - t * 0.3, 0.32, 0.68)) : num(s.accelZ),
+              status: critical ? 'CRITICAL' : 'WARNING',
             };
           })
         );
@@ -197,34 +205,44 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ...prev.slice(1),
           {
             time: timeStr,
-            vibration: Number((1.65 + Math.random() * 0.2).toFixed(3)),
-            accelX: 0.88,
-            accelY: 1.12,
-            accelZ: 0.42,
-            correlation: 0.94,
+            vibration: num(1.2 + t * 0.6 + Math.random() * 0.15),
+            accelX: num(0.62 + t * 0.32),
+            accelY: num(0.78 + t * 0.4),
+            accelZ: num(clamp(0.55 - t * 0.18, 0.35, 0.6)),
+            correlation: num(0.62 + t * 0.33, 2),
           },
         ]);
 
-        setOverallRiskScore(96);
-        setGroundStabilityPercent(18);
-      } else if (progress >= 100) {
-        // Simulation peak completed
+        setOverallRiskScore(Math.round(70 + 26 * t));
+        setGroundStabilityPercent(Math.round(56 - 34 * t));
+      } else if (progress < 100) {
+        // Sustain peak conditions with high-amplitude jitter
+        setTelemetryHistory((prev) => [
+          ...prev.slice(1),
+          {
+            time: timeStr,
+            vibration: num(1.62 + Math.random() * 0.28),
+            accelX: num(0.86 + Math.random() * 0.06),
+            accelY: num(1.08 + Math.random() * 0.08),
+            accelZ: num(0.38 + Math.random() * 0.06),
+            correlation: num(0.93 + Math.random() * 0.03, 2),
+          },
+        ]);
+        setOverallRiskScore(96 + Math.round(Math.random() * 3));
+        setGroundStabilityPercent(17 + Math.round(Math.random() * 2));
+      } else {
+        // Simulation peak reached — finalize event summary
         if (simTimerRef.current) clearInterval(simTimerRef.current);
-        
+
         setLastEventSummary({
-          timestamp: new Date().toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-          }),
+          timestamp: timeStr,
           confidence: 98.6,
           correlation: 0.94,
           peakVibration: 1.84,
           affectedNodes: ['SN-02', 'SN-03', 'SN-04', 'SN-05', 'SN-08', 'SN-12'],
         });
       }
-    }, 350);
+    }, 380);
   }, [isSimulating]);
 
   const resetSimulation = useCallback(() => {
